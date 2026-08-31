@@ -1,0 +1,50 @@
+services:
+  db:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-cleantrack}
+      POSTGRES_USER: ${POSTGRES_USER:-cleantrack}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-cleantrack-dev-password}
+    volumes:
+      - cleantrack_db:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-cleantrack} -d ${POSTGRES_DB:-cleantrack}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+
+  api:
+    build:
+      context: ./backend
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__Default: Host=db;Port=5432;Database=${POSTGRES_DB:-cleantrack};Username=${POSTGRES_USER:-cleantrack};Password=${POSTGRES_PASSWORD:-cleantrack-dev-password}
+      Jwt__Issuer: PetrikCleanTrack
+      Jwt__Audience: PetrikCleanTrack.Admin
+      Jwt__Key: ${JWT_KEY:-DEV_ONLY_CHANGE_ME_012345678901234567890123456789}
+      TimeZone: Europe/Budapest
+      ADMIN_EMAIL: ${ADMIN_EMAIL:-admin@petrik.hu}
+      ADMIN_PASSWORD: ${ADMIN_PASSWORD:-ChangeMe123!}
+      ADMIN_FULL_NAME: ${ADMIN_FULL_NAME:-CleanTrack Admin}
+    depends_on:
+      db:
+        condition: service_healthy
+    ports:
+      - "8080:8080"
+
+  web:
+    build:
+      context: ./frontend
+    restart: unless-stopped
+    depends_on:
+      - api
+    ports:
+      - "8088:80"
+
+volumes:
+  cleantrack_db:
